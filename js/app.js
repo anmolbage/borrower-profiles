@@ -162,7 +162,7 @@
     return `<button class="row tap" data-cust="${esc(c.id)}">
       <div class="avatar" style="background:${colorFor(c.name)}">${esc(initials(c.name))}</div>
       <div class="title"><b>${esc(c.name)}</b><span>${esc([c.age, segShort(c.segment), types].filter(Boolean).join(' · '))}</span></div>
-      ${/^(NPA|SMA)/.test(worstStatus(c)) ? statusBadge(worstStatus(c)) : prioBadge(c.priority)}${I.chev}</button>`;
+      ${prioBadge(c.priority)}${I.chev}</button>`;
   }
   function renderCustomers() {
     const el = $('#tab-customers');
@@ -214,23 +214,23 @@
         <div class="avatar" style="background:${colorFor(c.name)}">${esc(initials(c.name))}</div>
         <h2>${esc(c.name)}</h2>
         <p>${esc([has(c.age) ? c.age + ' yrs' : '', c.stage, segShort(c.segment)].filter(Boolean).join(' · '))}</p>
-        <div class="badges">${prioBadge(c.priority)}${worstStatus(c) && worstStatus(c) !== 'Regular' ? statusBadge(worstStatus(c)) : ''}${has(c.cibilBand) ? `<span class="badge b-blue">CIBIL ${esc(c.cibil)}</span>` : ''}${c.loans.length > 1 ? `<span class="badge b-blue">${c.loans.length} loans</span>` : ''}</div>
+        <div class="badges">${prioBadge(c.priority)}${has(c.cibilBand) ? `<span class="badge b-blue">CIBIL ${esc(c.cibil)}</span>` : ''}${c.loans.length > 1 ? `<span class="badge b-blue">${c.loans.length} loans</span>` : ''}</div>
       </div>
       <div class="kpis">
         <div class="kpi"><span>Income / year</span><b>${esc(rs(c.income))}</b></div>
         <div class="kpi"><span>Net worth</span><b>${has(c.netWorth) ? 'Rs ' + esc(c.netWorth) + ' L' : '—'}</b></div>
         <div class="kpi"><span>Est. surplus / month</span><b>${esc(rs(c.surplus))}</b></div>
-        <div class="kpi"><span>Outstanding with us${c.loans.some(l => has(l.cbsOutstanding)) ? ' (CBS)' : ''}</span><b>${esc(rs(c.outstanding))}</b></div>
+        <div class="kpi"><span>Outstanding with us</span><b>${esc(rs(c.outstanding))}</b></div>
       </div>
 
       ${section('Profile', kv('Mobile', c.mobile) + kv('Occupation', c.occDetail || c.occ) + kv('Employer / business', c.employer) + kv('Relation', c.relation) + stack('Address', c.address) + kv('Income segment', c.incomeSeg) + kv('Customer ID', c.id))}
 
       ${c.loans.map((l, i) => section(i === 0 ? 'Loans with us' : '', `
         <div class="row"><div class="title"><b>${esc(l.type)}</b><span>${esc(l.asset || '')}</span></div><div class="value">${esc(rs(l.amount))}</div></div>
-        ${kv('Account no.', l.acctNo)}${has(l.status) ? `<div class="row"><div class="title"><b>Account status</b>${l.status !== 'Regular' && l.status.indexOf(':') > 0 ? `<span>${esc(l.status.split(':').slice(1).join(':').trim())}</span>` : ''}</div>${statusBadge(l.status)}</div>` : ''}
+        ${kv('Account no.', l.acctNo)}
         ${kv('Sanctioned', l.sanctionDate)}${kv('Rate · tenure', [has(l.roi) ? l.roi + '%' : '', has(l.tenure) ? l.tenure + ' months' : ''].filter(Boolean).join(' · '))}
-        ${kv('EMI', rs(l.emi))}${has(l.cbsOutstanding) ? kv('Outstanding (CBS)', rs(l.cbsOutstanding)) : kv('Est. outstanding', rs(l.outstanding))}${kv('Months left', l.remaining)}
-        ${kv('Next anniversary', l.anniversary)}${kv('Vehicle no.', l.regNo)}${kv('Dealer', l.dealer)}${kv('Guarantor', l.guarantor)}${kv('Co-applicant', l.coApplicant)}${kv('CBS product', l.cbsType)}${stack('Account match', l.match)}`)).join('')}
+        ${kv('EMI', rs(l.emi))}${kv('Outstanding', rs(has(l.cbsOutstanding) ? l.cbsOutstanding : l.outstanding))}${kv('Months left', l.remaining)}
+        ${kv('Next anniversary', l.anniversary)}${kv('Vehicle no.', l.regNo)}${kv('Dealer', l.dealer)}${kv('Guarantor', l.guarantor)}${kv('Co-applicant', l.coApplicant)}`)).join('')}
 
       ${loanSugg.length ? section('Suggested loans and banking', `<div class="row stack"><div class="pills">${loanSugg.map(s => `<span class="badge b-blue">${esc(s)}</span>`).join('')}</div>${has(c.loans[0] && c.loans[0].pitch) ? `<div class="k" style="margin-top:6px">${esc(c.loans[0].pitch)}</div>` : ''}</div>`) : ''}
 
