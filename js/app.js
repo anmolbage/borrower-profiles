@@ -33,6 +33,9 @@
   const colorFor = s => COLORS[[...String(s)].reduce((a, c) => a + c.charCodeAt(0), 0) % COLORS.length];
   const initials = n => String(n || '?').split(/\s+/).filter(Boolean).slice(0, 2).map(w => w[0]).join('').toUpperCase();
   const prioBadge = p => !p ? '' : `<span class="badge ${p[0] === 'A' ? 'b-hot' : p[0] === 'B' ? 'b-warm' : 'b-cold'}">${esc(p.slice(4) || p)}</span>`;
+  const statusBadge = st => !has(st) ? '' : `<span class="badge ${st === 'Regular' ? 'b-high' : /^(NPA|SMA-1|SMA-2)/.test(st) ? 'b-red' : 'b-med'}">${esc(st.split(':')[0])}</span>`;
+  const worstStatus = c => { const order = s => /^NPA/.test(s) ? 5 : /^SMA-2/.test(s) ? 4 : /^SMA-1/.test(s) ? 3 : /^SMA-0/.test(s) ? 2 : /^Overdue/.test(s) ? 1 : 0;
+    return c.loans.map(l => l.status).filter(has).sort((a, b) => order(b) - order(a))[0] || ''; };
   const fitBadge = f => `<span class="badge ${f === 'High' ? 'b-high' : 'b-med'}">${esc(f)}</span>`;
   const segShort = s => ({ 'PSU / Coal (CCL etc.)': 'PSU', 'Business Owner / Trader': 'Business', 'Self-employed Professional': 'Professional', 'Bank / Financial Staff': 'Bank staff', 'Govt Employee': 'Govt', 'Private Salaried': 'Private', 'Other / Student / Homemaker': 'Other' }[s] || s || '');
   const loanShort = t => ({ 'Car Loan': 'Car', 'Housing Loan': 'Home', 'Housing Loan Top-up': 'Home top-up', 'Cash Credit': 'CC', 'Personal Loan': 'PL', 'Loan Against Property': 'LAP', 'Term Loan + Cash Credit': 'CC' }[t] || t);
@@ -151,7 +154,7 @@
     const q = state.q.trim().toLowerCase();
     return list.filter(c => matchesLoan(c, state.loanFilter))
       .filter(c => state.prioFilter === 'All' || (c.priority || '')[0] === state.prioFilter)
-      .filter(c => !q || [c.name, c.mobile, c.locality, c.district, c.occDetail, c.employer, c.id, ...c.loans.map(l => l.asset)].join(' ').toLowerCase().includes(q));
+      .filter(c => !q || [c.name, c.mobile, c.locality, c.district, c.occDetail, c.employer, c.id, ...c.loans.map(l => l.asset), ...c.loans.map(l => l.acctNo)].join(' ').toLowerCase().includes(q));
   }
   function sortCust(list) { return list.slice().sort((a, b) => (a.priority || 'Z').localeCompare(b.priority || 'Z') || a.name.localeCompare(b.name)); }
   function custRow(c) {
@@ -159,7 +162,7 @@
     return `<button class="row tap" data-cust="${esc(c.id)}">
       <div class="avatar" style="background:${colorFor(c.name)}">${esc(initials(c.name))}</div>
       <div class="title"><b>${esc(c.name)}</b><span>${esc([c.age, segShort(c.segment), types].filter(Boolean).join(' · '))}</span></div>
-      ${prioBadge(c.priority)}${I.chev}</button>`;
+      ${/^(NPA|SMA)/.test(worstStatus(c)) ? statusBadge(worstStatus(c)) : prioBadge(c.priority)}${I.chev}</button>`;
   }
   function renderCustomers() {
     const el = $('#tab-customers');
@@ -176,7 +179,7 @@
         <div class="tile"><span>Loans</span><b>${loans}</b></div>
         <div class="tile"><span>Hot leads</span><b>${hot}</b></div>
       </div>
-      <div class="search">${I.search}<input id="q" type="search" placeholder="Name, mobile, firm, locality" value="${esc(state.q)}" autocomplete="off"></div>
+      <div class="search">${I.search}<input id="q" type="search" placeholder="Name, mobile, account no., locality" value="${esc(state.q)}" autocomplete="off"></div>
       <div class="seg" id="loanSeg">${LOAN_FILTERS.map(f => `<button class="${f === state.loanFilter ? 'on' : ''}" data-f="${f}">${f}</button>`).join('')}</div>
       <div class="chips" id="prioChips">${[['All', 'All leads'], ['A', 'Hot'], ['B', 'Warm'], ['C', 'Nurture']].map(([k, t]) => `<button class="chip ${k === state.prioFilter ? 'on' : ''}" data-p="${k}">${t}</button>`).join('')}</div>
       <div class="list-count">${list.length} ${list.length === 1 ? 'customer' : 'customers'}</div>
@@ -211,22 +214,23 @@
         <div class="avatar" style="background:${colorFor(c.name)}">${esc(initials(c.name))}</div>
         <h2>${esc(c.name)}</h2>
         <p>${esc([has(c.age) ? c.age + ' yrs' : '', c.stage, segShort(c.segment)].filter(Boolean).join(' · '))}</p>
-        <div class="badges">${prioBadge(c.priority)}${has(c.cibilBand) ? `<span class="badge b-blue">CIBIL ${esc(c.cibil)}</span>` : ''}${c.loans.length > 1 ? `<span class="badge b-blue">${c.loans.length} loans</span>` : ''}</div>
+        <div class="badges">${prioBadge(c.priority)}${worstStatus(c) && worstStatus(c) !== 'Regular' ? statusBadge(worstStatus(c)) : ''}${has(c.cibilBand) ? `<span class="badge b-blue">CIBIL ${esc(c.cibil)}</span>` : ''}${c.loans.length > 1 ? `<span class="badge b-blue">${c.loans.length} loans</span>` : ''}</div>
       </div>
       <div class="kpis">
         <div class="kpi"><span>Income / year</span><b>${esc(rs(c.income))}</b></div>
         <div class="kpi"><span>Net worth</span><b>${has(c.netWorth) ? 'Rs ' + esc(c.netWorth) + ' L' : '—'}</b></div>
         <div class="kpi"><span>Est. surplus / month</span><b>${esc(rs(c.surplus))}</b></div>
-        <div class="kpi"><span>Outstanding with us</span><b>${esc(rs(c.outstanding))}</b></div>
+        <div class="kpi"><span>Outstanding with us${c.loans.some(l => has(l.cbsOutstanding)) ? ' (CBS)' : ''}</span><b>${esc(rs(c.outstanding))}</b></div>
       </div>
 
       ${section('Profile', kv('Mobile', c.mobile) + kv('Occupation', c.occDetail || c.occ) + kv('Employer / business', c.employer) + kv('Relation', c.relation) + stack('Address', c.address) + kv('Income segment', c.incomeSeg) + kv('Customer ID', c.id))}
 
       ${c.loans.map((l, i) => section(i === 0 ? 'Loans with us' : '', `
         <div class="row"><div class="title"><b>${esc(l.type)}</b><span>${esc(l.asset || '')}</span></div><div class="value">${esc(rs(l.amount))}</div></div>
+        ${kv('Account no.', l.acctNo)}${has(l.status) ? `<div class="row"><div class="title"><b>Account status</b>${l.status !== 'Regular' && l.status.indexOf(':') > 0 ? `<span>${esc(l.status.split(':').slice(1).join(':').trim())}</span>` : ''}</div>${statusBadge(l.status)}</div>` : ''}
         ${kv('Sanctioned', l.sanctionDate)}${kv('Rate · tenure', [has(l.roi) ? l.roi + '%' : '', has(l.tenure) ? l.tenure + ' months' : ''].filter(Boolean).join(' · '))}
-        ${kv('EMI', rs(l.emi))}${kv('Est. outstanding', rs(l.outstanding))}${kv('Months left', l.remaining)}
-        ${kv('Next anniversary', l.anniversary)}${kv('Vehicle no.', l.regNo)}${kv('Dealer', l.dealer)}${kv('Guarantor', l.guarantor)}${kv('Co-applicant', l.coApplicant)}`)).join('')}
+        ${kv('EMI', rs(l.emi))}${has(l.cbsOutstanding) ? kv('Outstanding (CBS)', rs(l.cbsOutstanding)) : kv('Est. outstanding', rs(l.outstanding))}${kv('Months left', l.remaining)}
+        ${kv('Next anniversary', l.anniversary)}${kv('Vehicle no.', l.regNo)}${kv('Dealer', l.dealer)}${kv('Guarantor', l.guarantor)}${kv('Co-applicant', l.coApplicant)}${kv('CBS product', l.cbsType)}${stack('Account match', l.match)}`)).join('')}
 
       ${loanSugg.length ? section('Suggested loans and banking', `<div class="row stack"><div class="pills">${loanSugg.map(s => `<span class="badge b-blue">${esc(s)}</span>`).join('')}</div>${has(c.loans[0] && c.loans[0].pitch) ? `<div class="k" style="margin-top:6px">${esc(c.loans[0].pitch)}</div>` : ''}</div>`) : ''}
 

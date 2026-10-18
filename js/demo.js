@@ -27,7 +27,10 @@ window.BP_DEMO = (function () {
         roi: '8.65', tenure: t === 'Housing Loan' ? '240' : '84', emi: inr(emi), sanctionDate: '1' + j + '-0' + (3 + j) + '-2024', remaining: '50', outstanding: inr(amt * 0.7),
         anniversary: '1' + j + '-0' + (3 + j) + '-2027', regNo: t === 'Car Loan' ? 'JH24AB' + (1000 + i) : '', guarantor: pick(first) + ' ' + pick(last),
         suggested: t === 'Car Loan' ? 'Motor Insurance Renewal; Housing Loan; Pre-approved Personal Loan' : 'Home Insurance; Car Loan', pitch: 'good repayment; seasoned loan',
-        priority: pick(['A - Hot', 'B - Warm', 'B - Warm', 'C - Nurture']), source: 'Sample note ' + (i + 1) + '.pdf' });
+        priority: pick(['A - Hot', 'B - Warm', 'B - Warm', 'C - Nurture']), source: 'Sample note ' + (i + 1) + '.pdf',
+        acctNo: '8400' + String(1000000 + i * 7919 + j), cbsType: 'TL-' + t.toUpperCase(), cbsOutstanding: inr(amt * 0.65),
+        status: pick(['Regular', 'Regular', 'Regular', 'SMA-0: 1 EMI(s) overdue, Rs 9,000 irregular', 'SMA-1: 2 EMI(s) overdue, Rs 18,000 irregular']),
+        match: 'High: name, amount, sanction date (0 days apart)' });
     }
     const fits = {}; fitsAll.forEach(f => { const r = rnd(); if (r > 0.55) fits[f] = r > 0.78 ? 'High' : 'Medium'; });
     customers.push({

@@ -1,5 +1,5 @@
 /* Caches only the app's own files. Customer data is never cached here. */
-const CACHE = 'bp-v1.0.0';
+const CACHE = 'bp-v1.1.0';
 const FILES = ['./', 'index.html', 'css/app.css', 'js/config.js', 'js/demo.js', 'js/app.js', 'manifest.json', 'icons/icon-192.png'];
 self.addEventListener('install', e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(FILES))); self.skipWaiting(); });
 self.addEventListener('activate', e => {
