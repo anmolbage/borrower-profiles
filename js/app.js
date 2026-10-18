@@ -124,6 +124,7 @@
   function startApp() {
     $('#login').classList.add('hidden'); $('#app').classList.remove('hidden');
     renderTab();
+    openDeepLink();
   }
   $('#tabbar').addEventListener('click', e => {
     const b = e.target.closest('button'); if (!b) return;
@@ -244,7 +245,11 @@
 
       ${section('What they already have', kv('Marital status', c.marital) + stack('Spouse', c.spouse) + stack('Children', c.children) + kv('Dependent parents', c.parents) + stack('Life cover', c.lifeCover) + stack('Health cover', c.healthCover) + stack('Loan-linked cover', c.loanCover) + stack('Retirement savings', c.retirement) + stack('Investments', c.investments) + stack('Gold', c.gold) + stack('Property', c.realEstate) + stack('Farm land', c.agri) + stack('Other income', c.otherIncome) + stack('Employer benefits', c.benefits))}
 
-      ${section('In your other apps', others.length ? others.map(o => `<div class="row"><div class="title"><b>${esc(o.app)} · ${esc(o.product || 'Lead')}</b><span>${esc([o.stage, o.date].filter(Boolean).join(' · '))}</span></div>${o.amount ? `<div class="value">Rs ${esc(Number(o.amount).toLocaleString('en-IN'))}</div>` : ''}</div>`).join('') : '<div class="row"><div class="title"><span style="margin:0">Not found in Loan CRM or CVE CRM</span></div></div>', 'Matched by mobile number.')}
+      ${section('In your other apps', others.length ? others.map(o => {
+        const url = o.app === 'CVE CRM' ? cveUrl(c) : '';
+        const inner = `<div class="title"><b${url ? ' style="color:var(--label)"' : ''}>${esc(o.app)} · ${esc(o.product || 'Lead')}</b><span>${esc([o.stage, o.date].filter(Boolean).join(' · '))}</span></div>${o.amount ? `<div class="value">Rs ${esc(Number(o.amount).toLocaleString('en-IN'))}</div>` : ''}`;
+        return url ? `<a class="row tap" href="${esc(url)}" target="_blank" rel="noopener">${inner}${I.chev}</a>` : `<div class="row">${inner}</div>`;
+      }).join('') : '<div class="row"><div class="title"><span style="margin:0">Not found in Loan CRM or CVE CRM</span></div></div>', 'Matched by mobile number. Tap a CVE CRM lead to open it.')}
 
       ${section('Notes', stack('From the sanction notes', [c.wealthNotes, ...c.loans.map(l => l.notes)].filter(has).join('\n\n')) + stack('Other loans / liabilities', c.loans.map(l => l.existingLoans).filter(has).join('; ')) + stack('Household', c.household))}
 
@@ -257,6 +262,34 @@
     }
     d.onscroll = () => { const n = $('.navbar', d); if (n) n.classList.toggle('scrolled', d.scrollTop > 120); };
   }
+  // Link to this customer's lead in CVE CRM, matched by mobile
+  function cveUrl(c) {
+    const app = (CFG.APPS || []).find(a => a.name === 'CVE CRM');
+    const mob = String(c.mobile || '').replace(/\D/g, '').slice(-10);
+    return app && mob.length === 10 ? app.url + '?mobile=' + mob : '';
+  }
+
+  // Links from other apps: ?mobile=<number>, ?cid=<customer id> or ?q=<name>
+  // open that customer once the data is loaded (after sign-in if needed).
+  const deepLink = (() => {
+    const p = new URLSearchParams(location.search);
+    return { mobile: String(p.get('mobile') || '').replace(/\D/g, '').slice(-10), cid: p.get('cid') || '', q: p.get('q') || '' };
+  })();
+  function openDeepLink() {
+    const { mobile, cid, q } = deepLink;
+    if (!mobile && !cid && !q) return;
+    deepLink.mobile = deepLink.cid = deepLink.q = '';
+    try { history.replaceState(null, '', location.pathname + (CFG.DEMO_MODE ? '?demo=1' : '')); } catch (e) {}
+    const all = (state.data && state.data.customers) || [];
+    let hits = mobile ? all.filter(c => String(c.mobile || '').replace(/\D/g, '').slice(-10) === mobile) : [];
+    if (!hits.length && cid) hits = all.filter(c => c.id === cid);
+    if (!hits.length && q) hits = all.filter(c => String(c.name || '').trim().toLowerCase() === q.trim().toLowerCase());
+    if (hits.length === 1) { openDetail(hits[0].id); return; }
+    state.q = hits.length ? (mobile || q) : '';
+    renderCustomers();
+    if (!hits.length) toast('No borrower profile for this customer');
+  }
+
   function closeDetail(silent) {
     const d = $('#detail'); if (!d.classList.contains('open')) return;
     d.classList.remove('open'); state.detailId = null;
