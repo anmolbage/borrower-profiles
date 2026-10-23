@@ -32,7 +32,8 @@
     child: sv('<circle cx="12" cy="6" r="3"/><path d="M8 21v-5l-2-3 3-2h6l3 2-2 3v5"/>'),
     elder: sv('<circle cx="10" cy="5" r="2.5"/><path d="M10 8v6l-3 7M10 14l3 7M15 9l2 12"/>'),
     user: sv('<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>'),
-    brief: sv('<rect x="3" y="7" width="18" height="13" rx="2"/><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>')
+    brief: sv('<rect x="3" y="7" width="18" height="13" rx="2"/><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>'),
+    pdf: sv('<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M12 12v6M9 15l3 3 3-3"/>')
   };
   const LOAN = {
     Car: { c: 'var(--c-car)', t: ['Car Loan'] },
@@ -246,7 +247,7 @@
     const appOf = n => (CFG.APPS || []).find(a => a.name === n) || {};
     const d = $('#detail');
     d.innerHTML = `
-      <div class="fs-head"><button class="iconbtn" data-act="back" aria-label="Back">${ICON.back}</button><h2>${esc(c.name)}</h2>${prioBadge(c.priority)}</div>
+      <div class="fs-head"><button class="iconbtn" data-act="back" aria-label="Back">${ICON.back}</button><h2>${esc(c.name)}</h2>${prioBadge(c.priority)}<button class="iconbtn" data-act="pdf" aria-label="Export PDF" title="Export PDF">${ICON.pdf}</button></div>
       <div class="fs-body">
         <div class="d-hero">
           <div class="ini" style="--acc:${loanColor(t0)}">${esc(initials(c.name))}</div>
@@ -333,6 +334,122 @@
     if (!hits.length) toast('No borrower profile for this customer');
   }
 
+  // ---------------------------------------------------------------- PDF export
+  const PDF_LIBS = [
+    'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js',
+    'https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js'
+  ];
+  function loadScript(src) {
+    return new Promise((ok, fail) => {
+      if ([...document.scripts].some(s => s.src === src && s.dataset.loaded)) return ok();
+      const el = document.createElement('script'); el.src = src;
+      el.onload = () => { el.dataset.loaded = '1'; ok(); };
+      el.onerror = () => fail(new Error('Could not load the PDF tool. Check your internet connection.'));
+      document.head.appendChild(el);
+    });
+  }
+  // Standard PDF fonts cover Latin-1 only: swap symbols they can't draw.
+  const pdfText = v => String(v == null ? '' : v)
+    .replace(/[–—]/g, '-').replace(/·/g, '|').replace(/₹/g, 'Rs')
+    .replace(/[‘’]/g, "'").replace(/[“”]/g, '"').replace(/≥/g, '>=').replace(/≤/g, '<=').replace(/…/g, '...')
+    .replace(/[^\x09\x0a\x0d\x20-\x7e\xa0-\xff]/g, '').trim();
+  let pdfBusy = false;
+  async function exportPdf(id) {
+    const c = customers().find(x => x.id === id); if (!c || pdfBusy) return;
+    pdfBusy = true; toast('Preparing PDF...');
+    try {
+      for (const src of PDF_LIBS) await loadScript(src);
+      const { jsPDF } = window.jspdf;
+      const doc = new jsPDF({ unit: 'pt', format: 'a4' });
+      const W = doc.internal.pageSize.getWidth(), M = 40;
+      const violet = [124, 58, 237], deep = [46, 16, 101], grey = [91, 100, 120];
+      const today = new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+
+      // header band
+      doc.setFillColor(...deep); doc.rect(0, 0, W, 86, 'F');
+      doc.setFillColor(...violet); doc.rect(W * 0.6, 0, W * 0.4, 86, 'F');
+      doc.setTextColor(255, 255, 255); doc.setFont('helvetica', 'bold'); doc.setFontSize(19);
+      doc.text(pdfText(c.name), M, 40);
+      doc.setFont('helvetica', 'normal'); doc.setFontSize(10.5);
+      doc.text(pdfText([has(c.age) ? c.age + ' yrs' : '', c.stage, segShort(c.segment), c.locality].filter(Boolean).join('  |  ')), M, 60);
+      doc.setFontSize(9);
+      doc.text(pdfText('Borrower profile  |  ' + CFG.BRANCH_NAME), W - M, 36, { align: 'right' });
+      doc.text(pdfText(today), W - M, 50, { align: 'right' });
+      doc.text(pdfText('Customer ' + c.id + (c.priority ? '  |  ' + c.priority : '')), W - M, 64, { align: 'right' });
+
+      // summary tiles
+      const tiles = [['Income / year', rs(c.income)], ['Net worth', has(c.netWorth) ? 'Rs ' + c.netWorth + ' L' : '-'], ['Est. surplus / month', rs(c.surplus)], ['Outstanding with us', short(outstanding(c))]];
+      const tw = (W - 2 * M - 3 * 8) / 4;
+      tiles.forEach(([k, v], i) => {
+        const x = M + i * (tw + 8);
+        doc.setFillColor(245, 243, 255); doc.roundedRect(x, 102, tw, 46, 6, 6, 'F');
+        doc.setTextColor(...grey); doc.setFontSize(8); doc.text(pdfText(k), x + 9, 118);
+        doc.setTextColor(15, 23, 42); doc.setFont('helvetica', 'bold'); doc.setFontSize(11.5); doc.text(pdfText(v), x + 9, 137);
+        doc.setFont('helvetica', 'normal');
+      });
+      let y = 170;
+
+      const table = (title, rows, opts) => {
+        rows = rows.filter(r => r && has(r[r.length - 1]));
+        if (!rows.length) return;
+        if (y > doc.internal.pageSize.getHeight() - 100) { doc.addPage(); y = 50; }
+        doc.setTextColor(...violet); doc.setFont('helvetica', 'bold'); doc.setFontSize(10); doc.text(pdfText(title.toUpperCase()), M, y);
+        doc.autoTable(Object.assign({
+          startY: y + 6, margin: { left: M, right: M, bottom: 40 }, theme: 'grid',
+          body: rows.map(r => r.map(pdfText)),
+          styles: { font: 'helvetica', fontSize: 9, cellPadding: 5, lineColor: [232, 231, 240], lineWidth: 0.6, textColor: [15, 23, 42], valign: 'top' },
+          columnStyles: { 0: { cellWidth: 150, textColor: grey, fontStyle: 'bold' } }
+        }, opts || {}));
+        y = doc.lastAutoTable.finalY + 22;
+      };
+
+      table('Profile', [['Mobile', c.mobile], ['Occupation', c.occDetail || c.occ], ['Employer / business', c.employer], ['Relation', c.relation], ['Address', c.address], ['CIBIL', has(c.cibil) && num(c.cibil) > 0 ? c.cibil : ''], ['Income segment', c.incomeSeg]]);
+      c.loans.forEach((l, i) => table('Loan' + (c.loans.length > 1 ? ' ' + (i + 1) + ' of ' + c.loans.length : '') + ': ' + (l.type || ''), [
+        ['Account no.', l.acctNo], ['Asset / purpose', l.asset || l.scheme], ['Sanctioned', [has(l.amount) ? rs(l.amount) : '', l.sanctionDate].filter(has).join(' on ')],
+        ['Rate | tenure', [has(l.roi) ? l.roi + '%' : '', has(l.tenure) ? l.tenure + ' months' : ''].filter(Boolean).join(' | ')], ['EMI', has(l.emi) ? rs(l.emi) : ''],
+        ['Outstanding', has(l.cbsOutstanding) ? rs(l.cbsOutstanding) : has(l.outstanding) ? rs(l.outstanding) : ''], ['Months left', l.remaining], ['Next anniversary', l.anniversary],
+        ['Vehicle no.', l.regNo], ['Dealer', l.dealer], ['Guarantor', l.guarantor], ['Co-applicant', l.coApplicant]]));
+      const sugg = [...new Set(c.loans.flatMap(l => split(l.suggested)))];
+      table('Suggested loans and banking', [['Products', sugg.join(', ')]]);
+      const fits = Object.entries(c.fits || {}).sort((a, b) => (a[1] === 'High' ? 0 : 1) - (b[1] === 'High' ? 0 : 1));
+      table('Investment and insurance fit', [...fits.map(([p, f]) => [p, f]), ['Suggested SIP', has(c.sip) ? rs(c.sip) + ' / month' : ''], ['Suggested term cover', has(c.termCover) ? 'Rs ' + c.termCover + ' L' : '']], {
+        didParseCell: d => {
+          if (d.section === 'body' && d.column.index === 1 && /^(High|Medium)$/.test(d.cell.raw)) {
+            d.cell.styles.fontStyle = 'bold'; d.cell.styles.textColor = d.cell.raw === 'High' ? [11, 122, 66] : [161, 103, 10];
+          }
+        }
+      });
+      table('Why these products', String(c.talk || '').split('|').map(t => t.trim()).filter(Boolean).map(t => { const i = t.indexOf(':'); return i > 0 ? [t.slice(0, i), t.slice(i + 1).trim()] : ['Note', t]; }));
+      table('For the family', [['Spouse', c.forSpouse], ['Children', c.forChildren], ['Parents', c.forParents]]);
+      table('By life stage and job', [[c.stage || 'Life stage', c.self], [segShort(c.segment) || 'Employment', c.empProducts]]);
+      table('What they already have', [['Marital status', c.marital], ['Spouse', c.spouse], ['Children', c.children], ['Dependent parents', c.parents], ['Life cover', c.lifeCover], ['Health cover', c.healthCover], ['Loan-linked cover', c.loanCover], ['Retirement savings', c.retirement], ['Investments', c.investments], ['Gold', c.gold], ['Property', c.realEstate], ['Farm land', c.agri], ['Other income', c.otherIncome], ['Employer benefits', c.benefits]]);
+      const others = [...(c.inLoanCrm || []).map(l => Object.assign({ app: 'Loan CRM' }, l)), ...(c.inCveCrm || []).map(l => Object.assign({ app: 'CVE CRM' }, l))];
+      table('In your other apps', others.map(o => [o.app, [o.product, o.stage, o.date, o.amount ? short(o.amount) : ''].filter(has).join(' | ')]));
+      table('Notes', [['From the sanction notes', [c.wealthNotes, ...c.loans.map(l => l.notes)].filter(has).join('\n\n')], ['Other loans / liabilities', c.loans.map(l => l.existingLoans).filter(has).join('; ')], ['Household', c.household]]);
+      table('Source', [['Data confidence', c.confidence], ...c.loans.map(l => ['Sanction note', l.source])]);
+
+      // footer on every page
+      const n = doc.internal.getNumberOfPages(), H = doc.internal.pageSize.getHeight();
+      for (let i = 1; i <= n; i++) {
+        doc.setPage(i); doc.setFontSize(8); doc.setTextColor(152, 161, 181); doc.setFont('helvetica', 'normal');
+        doc.text('Confidential - for internal bank use only. Suggestions are rule-based from the sanction note; verify before acting.', M, H - 22);
+        doc.text('Page ' + i + ' of ' + n, W - M, H - 22, { align: 'right' });
+      }
+
+      const fname = pdfText('Profile - ' + c.name + ' - ' + new Date().toISOString().slice(0, 10)).replace(/[\\/:*?"<>|]/g, '') + '.pdf';
+      const blob = doc.output('blob');
+      window.__lastPdf = { name: fname, size: blob.size, pages: n };
+      const file = typeof File === 'function' ? new File([blob], fname, { type: 'application/pdf' }) : null;
+      if (file && navigator.canShare && navigator.canShare({ files: [file] })) {
+        try { await navigator.share({ files: [file], title: fname }); toast('PDF ready'); return; }
+        catch (e) { if (e && e.name === 'AbortError') return; }
+      }
+      doc.save(fname);
+      toast('PDF downloaded');
+    } catch (err) { toast(err.message || 'Could not create the PDF.'); }
+    finally { pdfBusy = false; }
+  }
+
   // ---------------------------------------------------------------- segments
   function renderSegments() {
     const all = customers(), maps = (state.data && state.data.maps) || { age: [], employment: [] };
@@ -392,6 +509,7 @@
       const k = a.dataset.act;
       if (k === 'update') update();
       if (k === 'back') closeDetail();
+      if (k === 'pdf') exportPdf(state.detailId);
       if (k === 'segback') { state.segOpen = null; renderSegments(); }
       return;
     }

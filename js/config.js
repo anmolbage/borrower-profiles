@@ -3,7 +3,7 @@
 window.BP_CONFIG = {
   API_URL: 'https://script.google.com/macros/s/AKfycbwZLGe1GLWI2wO9BzPM2iwnfHs97kFwppcecpz--SNoLt2slq71tVVFs97CdDXWHGX-/exec',
   APP_NAME: 'Profiles',
-  VERSION: '1.2.0',
+  VERSION: '1.3.0',
   BRANCH_NAME: 'Ramgarh Cantt',
 
   // Your other apps (shown in the Apps tab)
